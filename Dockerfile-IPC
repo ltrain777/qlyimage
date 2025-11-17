@@ -1,0 +1,53 @@
+# Use ROS Melodic desktop base image, reflecting a likely QLY IPC environment
+FROM osrf/ros:melodic-desktop-full
+
+# Set the container maintainer (optional)
+LABEL maintainer="QLY IPC Simulator"
+
+# Set non-interactive mode for installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install core ROS utilities and prerequisite packages
+RUN apt-get update && apt-get install -y \
+    ros-melodic-map-server \
+    ros-melodic-tf \
+    ros-melodic-tf2-tools \
+    ros-melodic-rqt-tf-tree \
+    net-tools \
+    vim \
+    dpkg \
+    gedit \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create the required QLY map storage directory: /home/qlybot/.qlybot_map/
+# This ensures the structure matches the IPC file system [6-8].
+RUN mkdir -p /home/qlybot/.qlybot_map/
+
+# Copy the proprietary .deb package (ASSUMPTION: qlybot.deb is present locally)
+COPY qlybot.deb /tmp/qly_packages/
+
+# --- SIMULATE QLY IPC ENVIRONMENT INSTALLATION ---
+# Install the proprietary QLY package (as root)
+RUN dpkg -i /tmp/qly_packages/qlybot.deb
+# Cleanup
+RUN rm -rf /tmp/qly_packages/
+
+# Copy the simulated map files directly into the target location: /home/qlybot/.qlybot_map/
+WORKDIR /home/qlybot/.qlybot_map/
+COPY map_files/test_map.yaml .
+COPY map_files/test_map.pgm .
+
+# We emulate the required permissions set during mapping [1, 3, 5].
+RUN chmod 777 -R /home/qlybot/.qlybot_map/
+
+# Copy the custom entrypoint script
+COPY entrypoint_ipc.sh /usr/local/bin/
+
+# Ensure the script is executable
+RUN chmod +x /usr/local/bin/entrypoint_ipc.sh
+
+# Set the entrypoint to run the startup script
+ENTRYPOINT ["/usr/local/bin/entrypoint_ipc.sh"]
+
+# Default command if none is specified
+CMD ["/bin/bash"]

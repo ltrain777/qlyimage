@@ -1,0 +1,72 @@
+# Use the official ROS Noetic image that includes RVIZ and related tools
+FROM osrf/ros:noetic-desktop-full
+
+# Set non-interactive mode for installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# --- 1. System Setup (As Root) ---
+RUN apt-get update && apt-get install -y \
+    ssh \
+    dpkg \
+    cutecom \
+    net-tools \
+    curl \
+    vim \
+    # Install correct TF diagnostic tools (e.g., tf_echo, tf_monitor, rqt_tf_tree)
+    ros-noetic-tf \
+    ros-noetic-tf2-tools \
+    ros-noetic-rqt-tf-tree \
+    python2 \
+    # Install XCB graphical dependencies (Fixes Qt/RVIZ display errors)
+    # libxkbcommon-x11 \
+    # libxcb-icccm4 \
+    # libxcb-image0 \
+    # libxcb-keysyms1 \
+    # libxcb-randr0 \
+    # libxcb-render-util0 \
+    # libxcb-xinerama0 \
+    # libxcb-xfixes0 \
+    # libxcb-shape0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- 2. Create Non-Root User ---
+# We define a user 'qlyuser' with UID 1000, commonly corresponding to the default user on the host OS.
+ARG USERNAME=qlyuser
+ARG UID=1000
+ARG GID=$UID
+RUN groupadd --gid $GID $USERNAME \
+    && useradd -s /bin/bash --uid $UID --gid $GID -m $USERNAME \
+    # Add user to sudo group, mirroring the setup steps in the deployment guidance [1, 2]
+    && usermod -aG sudo $USERNAME
+
+# --- 3. Install QLY Debug Package (qlydbg.deb) ---
+WORKDIR /tmp/
+# ASSUMPTION: qlybot.deb is present in the build context
+COPY qlybot.deb /tmp/
+
+# Install the proprietary QLY debugging package as root
+RUN dpkg -i /tmp/qlybot.deb
+RUN rm /tmp/qlybot.deb
+# --- 4. Configure Non-Root Environment ---
+# Copy the custom entrypoint script
+COPY entrypoint_qlyclient.sh /usr/local/bin/
+
+# Set file ownership for the custom user
+RUN chmod +x /usr/local/bin/entrypoint_qlyclient.sh
+RUN chown -R $USERNAME:$USERNAME /home/$USERNAME
+RUN chown $USERNAME:$USERNAME /usr/local/bin/entrypoint_qlyclient.sh
+
+# Switch to the Non-Root User
+USER $USERNAME
+WORKDIR /home/$USERNAME
+
+# --- 5. Define ROS Network Environment ---
+# ROS_MASTER_URI is the address of the IPC robot [3-5]
+ENV ROS_MASTER_URI=http://192.168.68.70:11311
+# ROS_HOSTNAME and DISPLAY must be passed dynamically at runtime
+
+# Set Entrypoint and Default Command
+ENTRYPOINT ["/usr/local/bin/entrypoint_qlyclient.sh"]
+
+# Default command if none is specified (opens an interactive shell)
+CMD ["/bin/bash"]
