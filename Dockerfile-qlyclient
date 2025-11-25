@@ -41,12 +41,12 @@ RUN groupadd --gid $GID $USERNAME \
 
 # --- 3. Install QLY Debug Package (qlydbg.deb) ---
 WORKDIR /tmp/
-# ASSUMPTION: qlybot.deb is present in the build context
-COPY qlybot.deb /tmp/
+# ASSUMPTION: qlydbg.deb is present in the build context
+COPY qlydbg.deb /tmp/
 
 # Install the proprietary QLY debugging package as root
-RUN dpkg -i /tmp/qlybot.deb
-RUN rm /tmp/qlybot.deb
+RUN dpkg -i /tmp/qlydbg.deb
+RUN rm /tmp/qlydbg.deb
 # --- 4. Configure Non-Root Environment ---
 # Copy the custom entrypoint script
 COPY entrypoint_qlyclient.sh /usr/local/bin/
@@ -62,7 +62,7 @@ WORKDIR /home/$USERNAME
 
 # --- 5. Define ROS Network Environment ---
 # ROS_MASTER_URI is the address of the IPC robot [3-5]
-ENV ROS_MASTER_URI=http://192.168.68.70:11311
+# ENV ROS_MASTER_URI=http://192.168.68.70:11311
 # ROS_HOSTNAME and DISPLAY must be passed dynamically at runtime
 
 # Set Entrypoint and Default Command
